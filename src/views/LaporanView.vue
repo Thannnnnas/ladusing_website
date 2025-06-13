@@ -1,0 +1,563 @@
+<script setup>
+import { ref, onMounted, computed, watch } from 'vue';
+import { useRouter } from 'vue-router';
+import axios from 'axios';
+import { Pie } from 'vue-chartjs';
+import { Chart as ChartJS, Title, Tooltip, Legend, ArcElement, CategoryScale } from 'chart.js';
+
+ChartJS.register(Title, Tooltip, Legend, ArcElement, CategoryScale);
+
+const router = useRouter();
+const user = ref({ username: '', email: '' });
+const isLoading = ref(true);
+const activeTab = ref('pemasukan'); // Default tab
+const transactions = ref([]);
+
+const getFirstDayOfMonth = () => new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+const today = new Date().toISOString().split('T')[0];
+
+const startDate = ref(getFirstDayOfMonth());
+const endDate = ref(today);
+
+const apiClient = axios.create({
+  baseURL: 'http://172.20.3.47:9999',
+});
+
+apiClient.interceptors.request.use(config => {
+  const token = localStorage.getItem('authToken');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+}, error => {
+  return Promise.reject(error);
+});
+
+
+const reportData = computed(() => {
+  if (!transactions.value || transactions.value.length === 0) {
+    return { labels: [], datasets: [], tableRows: [], total: 0 };
+  }
+
+  const filtered = transactions.value.filter(t => t.type === activeTab.value);
+  const total = filtered.reduce((sum, item) => sum + item.amount, 0);
+  const grouped = filtered.reduce((acc, item) => {
+    acc[item.category] = (acc[item.category] || 0) + item.amount;
+    return acc;
+  }, {});
+
+  const labels = Object.keys(grouped);
+  const data = Object.values(grouped);
+  
+  const tableRows = labels.map(label => ({
+    category: label,
+    amount: grouped[label],
+    percentage: total > 0 ? ((grouped[label] / total) * 100).toFixed(1) : 0,
+  })).sort((a, b) => b.amount - a.amount);
+
+  return {
+    labels,
+    datasets: [{
+      backgroundColor: generateColors(labels.length),
+      data,
+    }],
+    tableRows,
+    total,
+  };
+});
+
+const chartData = computed(() => ({
+  labels: reportData.value.labels,
+  datasets: reportData.value.datasets,
+}));
+
+const chartOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: {
+      display: false, 
+    },
+    tooltip: {
+      callbacks: {
+        label: function(context) {
+          let label = context.label || '';
+          if (label) {
+            label += ': ';
+          }
+          if (context.parsed !== null) {
+            label += formatCurrency(context.parsed);
+          }
+          return label;
+        }
+      }
+    }
+  },
+};
+
+onMounted(() => {
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    // Jika tidak ada token, alihkan ke halaman login
+    router.push('/login');
+    return;
+  }
+  Promise.all([
+    fetchUserProfile(),
+    fetchReportData()
+  ]);
+});
+
+watch([startDate, endDate, activeTab], () => {
+  // Hanya fetch jika token ada (pengguna sudah login)
+  if (localStorage.getItem('authToken')) {
+    fetchReportData();
+  }
+});
+
+async function fetchUserProfile() {
+  try {
+    const response = await apiClient.get('/profile');
+    user.value = { username: response.data.username, email: response.data.email };
+  } catch (error) {
+    console.error("Gagal mengambil data profil:", error);
+    logout();
+  }
+}
+
+async function fetchReportData() {
+  isLoading.value = true;
+  try {
+    const params = {
+        start_date: startDate.value,
+        end_date: endDate.value,
+    };
+    const response = await apiClient.get('/transactions', { params });
+    transactions.value = response.data;
+  } catch (error) {
+    console.error('Gagal memuat data laporan:', error);
+    transactions.value = []; // Kosongkan data jika terjadi error
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+function generateColors(count) {
+  const colors = [];
+  for (let i = 0; i < count; i++) {
+    const hue = (i * 137.508) % 360;
+    colors.push(`hsl(${hue}, 70%, 60%)`);
+  }
+  return colors;
+}
+
+function formatCurrency(value) {
+  if (typeof value !== 'number') return 'Rp 0';
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0
+  }).format(value);
+}
+
+function logout() {
+  localStorage.removeItem('authToken');
+  router.push('/login');
+}
+</script>
+
+<template>
+  <div class="page-container">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="@/assets/images/logo-ladusing.png" alt="Logo Ladusing" class="sidebar-logo" />
+      </div>
+      <nav class="sidebar-nav">
+        <router-link to="/budgeting" class="nav-item">Budgeting</router-link>
+        <router-link to="/pencatatan" class="nav-item">Pencatatan</router-link>
+        <router-link to="/laporan" class="nav-item" active-class="active">Laporan</router-link>
+        <!-- Menggunakan button untuk aksi logout, lebih baik secara semantik -->
+        <button @click="logout" class="nav-item as-button">Keluar</button>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="profile-avatar"></div>
+        <div class="profile-info">
+          <span class="profile-name">{{ user.username }}</span>
+          <span class="profile-email">{{ user.email }}</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+      <h1 class="page-title">Laporan</h1>
+      <div class="content-header">
+        <div class="period-selector">
+          <label for="startDate">Dari Tanggal</label>
+          <input type="date" id="startDate" v-model="startDate">
+        </div>
+        <div class="period-selector">
+          <label for="endDate">Sampai Tanggal</label>
+          <input type="date" id="endDate" v-model="endDate">
+        </div>
+      </div>
+
+      <div class="tabs">
+        <button @click="activeTab = 'pemasukan'" :class="{ active: activeTab === 'pemasukan' }">Pemasukan</button>
+        <button @click="activeTab = 'pengeluaran'" :class="{ active: activeTab === 'pengeluaran' }">Pengeluaran</button>
+      </div>
+
+      <div class="report-layout">
+        <section class="chart-column">
+          <div class="chart-wrapper">
+            <Pie v-if="!isLoading && reportData.labels.length > 0" :data="chartData" :options="chartOptions" />
+            <div v-else class="chart-placeholder">
+              <p>{{ isLoading ? 'Memuat data...' : 'Tidak ada data.' }}</p>
+            </div>
+          </div>
+          <div class="legend-wrapper">
+            <div v-for="(label, index) in reportData.labels" :key="label" class="legend-item">
+              <span class="legend-color-box" :style="{ backgroundColor: reportData.datasets[0].backgroundColor[index] }"></span>
+              <span>{{ label }}</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="table-column">
+          <div class="total-summary">
+            Total {{ activeTab === 'pemasukan' ? 'Pemasukan' : 'Pengeluaran' }}:
+            <span>{{ formatCurrency(reportData.total) }}</span>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>No</th>
+                  <th>Kategori</th>
+                  <th>Presentase</th>
+                  <th>Total per Kategori</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="isLoading">
+                  <td colspan="4" class="text-center">Memuat data...</td>
+                </tr>
+                <tr v-else-if="reportData.tableRows.length === 0">
+                  <td colspan="4" class="text-center">Tidak ada data untuk ditampilkan.</td>
+                </tr>
+                <tr v-for="(row, index) in reportData.tableRows" :key="row.category">
+                  <td>{{ index + 1 }}</td>
+                  <td>{{ row.category }}</td>
+                  <td>{{ row.percentage }}%</td>
+                  <td>{{ formatCurrency(row.amount) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+</template>
+
+<style scoped>
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;700&display=swap');
+
+.page-container {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+    background-color: #f0f4f8;
+    font-family: 'Poppins', sans-serif;
+    overflow: hidden;
+}
+
+/* --- Sidebar --- */
+.sidebar {
+    width: 250px;
+    background-color: #A6C8FF;
+    display: flex;
+    flex-direction: column;
+    padding: 24px;
+    flex-shrink: 0;
+}
+
+.sidebar-header .sidebar-logo {
+    width: 150px;
+    margin-bottom: 40px;
+}
+
+.sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex-grow: 1;
+}
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    text-decoration: none;
+    color: #00008B;
+    font-weight: 500;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.nav-item.as-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    width: 100%;
+    font-family: 'Poppins', sans-serif;
+    font-size: 1rem;
+}
+
+
+.nav-item.active,
+.nav-item:hover {
+    background-color: rgba(255, 255, 255, 0.6);
+    color: #00005a;
+}
+
+.sidebar-footer {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: auto;
+}
+
+.profile-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: #00008B; 
+    flex-shrink: 0;
+}
+
+.profile-info {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.profile-name {
+    font-weight: 700;
+    color: #00008B;
+    white-space: nowrap;
+}
+
+.profile-email {
+    font-size: 0.8rem;
+    color: #00008B; 
+    opacity: 0.8;
+    white-space: nowrap;
+}
+
+/* --- Main Content --- */
+.main-content {
+    flex-grow: 1;
+    background-color: #00008B;
+    padding: 24px 40px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.page-title {
+    color: #fff;
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 20px;
+}
+
+.content-header {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.period-selector {
+    background-color: #fff;
+    color: #333;
+    padding: 8px 12px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+}
+
+.period-selector label {
+    font-weight: 500;
+    color: #555;
+}
+
+.period-selector input[type="date"] {
+    border: none;
+    background: transparent;
+    font-size: 1rem;
+    font-family: 'Poppins', sans-serif;
+    font-weight: 500;
+    cursor: pointer;
+    color: #333;
+}
+
+.tabs {
+    margin-bottom: 16px;
+}
+
+.tabs button {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.7); 
+    padding: 10px 20px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+
+.tabs button.active {
+    color: #fff;
+    font-weight: 700;
+    border-bottom-color: #fff;
+}
+
+/* --- Report Layout (Chart & Table) --- */
+.report-layout {
+    background-color: #eaf0f6;
+    border-radius: 12px;
+    padding: 24px;
+    flex-grow: 1;
+    display: flex;
+    gap: 24px;
+    min-height: 0;
+}
+
+.chart-column {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+}
+
+.table-column {
+    flex: 1.5;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+/* --- Chart Specifics --- */
+.chart-wrapper {
+    max-width: 280px; /* Sedikit lebih besar */
+    width: 100%;
+    height: 280px; /* Memberi tinggi eksplisit */
+    position: relative;
+}
+
+.chart-placeholder {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #dfe6ee;
+    border-radius: 50%;
+    color: #6c757d;
+    text-align: center;
+    padding: 10px;
+    font-weight: 500;
+}
+
+.legend-wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px 16px;
+    width: 100%;
+    max-width: 320px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+}
+
+.legend-color-box {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+/* --- Table Specifics --- */
+.total-summary {
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-bottom: 16px;
+    flex-shrink: 0;
+    color: #333;
+}
+
+.total-summary span {
+    color: #00008B;
+}
+
+.table-wrapper {
+    flex-grow: 1;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background-color: #fff;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th,
+td {
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 1px solid #ddd;
+    white-space: nowrap;
+    color: #334155;
+}
+
+th {
+    font-weight: 700;
+    background-color: #dfe6ee;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    color: #334155; 
+}
+
+tbody tr:nth-child(even) {
+    background-color: #f9fafb;
+}
+
+tbody tr:hover {
+    background-color: #f0f4f8;
+}
+
+.text-center {
+    text-align: center;
+    padding: 40px;
+    color: #777;
+}
+</style>
+

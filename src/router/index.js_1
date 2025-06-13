@@ -1,0 +1,27 @@
+// src/router/index.js
+
+import { createRouter, createWebHistory } from 'vue-router'
+import LoginView from '../views/LoginView.vue'
+import RegisterView from '../views/RegisterView.vue' // 1. Impor komponen baru
+
+const router = createRouter({
+  history: createWebHistory(import.meta.env.BASE_URL),
+  routes: [
+    {
+      path: '/login',
+      name: 'login',
+      component: LoginView
+    },
+    { // 2. Tambahkan objek rute baru untuk register
+      path: '/register',
+      name: 'register',
+      component: RegisterView 
+    },
+    {
+      path: '/',
+      redirect: '/login'
+    }
+  ]
+})
+
+export default router
