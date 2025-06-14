@@ -70,7 +70,7 @@ function getAuthToken() {
 
 async function fetchUserProfile(token) {
   try {
-    const response = await axios.get('http://172.20.3.47:9999/profile', {
+    const response = await axios.get('http://192.168.56.111:9999/profile', {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     user.value = { username: response.data.username, email: response.data.email };
@@ -82,7 +82,7 @@ async function fetchUserProfile(token) {
 
 async function fetchBudgetCategories(token, month) {
     try {
-        const response = await axios.get(`http://172.20.3.47:9999/budgeting?month=${month}`, {
+        const response = await axios.get(`http://192.168.56.111:9999/budgeting?month=${month}`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         allBudgetCategories.value = response.data;
@@ -94,7 +94,7 @@ async function fetchBudgetCategories(token, month) {
 async function fetchTransactions(token, month) {
   isLoading.value = true;
   try {
-    const response = await axios.get(`http://172.20.3.47:9999/transactions?month=${month}`, {
+    const response = await axios.get(`http://192.168.56.111:9999/transactions?month=${month}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     transactions.value = response.data.map(t => {
@@ -144,7 +144,7 @@ async function handleAddTransaction() {
   };
 
   try {
-    await axios.post('http://172.20.3.47:9999/transactions', payload, {
+    await axios.post('http://192.168.56.111:9999/transactions', payload, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     triggerNotification('Transaksi berhasil ditambahkan!', 'success');

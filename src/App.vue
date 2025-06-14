@@ -7,17 +7,24 @@ import { RouterView } from 'vue-router'
 </template>
 
 <style>
-/* Reset default margin dan padding browser */
-html, body {
+html,
+body {
+  overflow-x: hidden;
+  
   margin: 0;
   padding: 0;
-  box-sizing: border-box;
 }
 
-/* Pastikan #app (root div Vue) memenuhi seluruh layar */
 #app {
-  width: 100%;
-  height: 100%;
-  overflow-x: hidden; /* Hindari scroll horizontal */
+  height: 100vh;
+  width: 100vw;
+  padding: 0 0;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 </style>
+

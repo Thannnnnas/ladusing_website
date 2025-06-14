@@ -20,7 +20,7 @@ const startDate = ref(getFirstDayOfMonth());
 const endDate = ref(today);
 
 const apiClient = axios.create({
-  baseURL: 'http://172.20.3.47:9999',
+  baseURL: 'http://192.168.56.111:9999',
 });
 
 apiClient.interceptors.request.use(config => {

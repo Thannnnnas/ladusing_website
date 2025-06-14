@@ -37,7 +37,7 @@ const handleLogin = async () => {
   isLoading.value = true;
 
   try {
-    const response = await axios.post('http://172.20.3.47:9999/auth/login', {
+    const response = await axios.post('http://192.168.56.111:9999/auth/login', {
       email: email.value,
       password: password.value,
     });
@@ -128,7 +128,7 @@ const goToRegister = () => {
   height: 100vh;
   font-family: 'Poppins', sans-serif;
   background-color: #F8F9FA;
-  position: relative; /* Diperlukan agar notifikasi fixed berfungsi baik */
+  position: relative;  /* Diperlukan agar notifikasi fixed berfungsi baik */
   overflow: hidden;
 }
 

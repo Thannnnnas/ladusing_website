@@ -42,7 +42,7 @@ const handleRegister = async () => {
   isLoading.value = true;
 
   try {
-    const response = await axios.post('http://172.20.3.47:9999/auth/register', {
+    const response = await axios.post('http://192.168.56.111:9999/auth/register', {
       username: username.value,
       email: email.value,
       password: password.value,

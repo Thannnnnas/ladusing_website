@@ -56,7 +56,7 @@ function triggerNotification(message, type, duration = 3000) {
 
 async function fetchUserProfile(token) {
   try {
-    const response = await axios.get('http://172.20.3.47:9999/profile', {
+    const response = await axios.get('http://192.168.56.111:9999/profile', {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     user.value = {
@@ -79,7 +79,7 @@ async function fetchBudgetData(token, month) {
   if (!token || !month) return;
   isLoading.value = true;
   try {
-    const response = await axios.get(`http://172.20.3.47:9999/budgeting?month=${month}`, {
+    const response = await axios.get(`http://192.168.56.111:9999/budgeting?month=${month}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     allBudgetCategories.value = response.data;
@@ -142,7 +142,7 @@ async function handleAddCategory() {
   }
 
   try {
-    await axios.post('http://172.20.3.47:9999/budgeting', payload, {
+    await axios.post('http://192.168.56.111:9999/budgeting', payload, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     triggerNotification('Kategori berhasil ditambahkan!', 'success');
